@@ -1,0 +1,37 @@
+abide
+   DEP go-bowling
+   DEP burn-one
+   DEP have-a-caucasian
+   DEP get-rug-back
+
+get-rug-back
+   DEP get-rug-from-lebowski
+
+get-rug-from-lebowski
+   DEP confirm-rug-micturator
+   DEP pay-ransom-for-bunny
+   DEP investigate-jackie-treehorn
+
+pay-ransom-for-bunny
+   DEP evade-nihilists
+   DEP give-suitcase
+
+give-suitcase
+   DEP dont-give-ringer
+   DEP wheres-the-money-lebowski
+
+dont-give-ringer
+   DEP damn-it-walter
+
+wheres-the-money-lebowski
+   DEP find-stolen-car
+
+find-stolen-car
+   DEP question-larry-sellers
+
+go-bowling
+   DEP not-about-vietnam
+   DEP stfu-donny
+   DEP dont-fuck-with-the-jesus
+
+DONE burn-one
