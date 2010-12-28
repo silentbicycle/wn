@@ -56,7 +56,7 @@ local function read(str)
    end
 
    for line in str:gmatch("([^\n]+)") do
-      local ws, first, rest = line:match("^(%s*)([%a_.-]*)%s*(.*)")
+      local ws, first, rest = line:match("^(%s*)(%a[%w_.-]*)%s*(.*)")
       if ws then
          if ws:len() == 0 then
             if first:len() > 0 then        --begins w/ a new task or DONE
@@ -178,13 +178,13 @@ local function cmd_next(cfg, dat)
       for _,task in ipairs(ds[leaf.name] or {}) do
          t = t + get_score(task, depth-1) * (lcost / get_cost_of_deps(task))
       end
-      ss[leaf] = t
+      ss[leaf.name] = t
       return t
    end
 
-   for _,leaf in ipairs(ls) do ss[leaf] = get_score(leaf) end
+   for _,leaf in ipairs(ls) do ss[leaf.name] = get_score(leaf) end
 
-   table.sort(ls, function(a,b) return ss[a] > ss[b] end)   --by score
+   table.sort(ls, function(a,b) return ss[a.name] > ss[b.name] end)   --by score
    local columns = tonumber(os.getenv("COLUMNS") or 72)
    print(get_task_list(ls, columns, ss))
 end
