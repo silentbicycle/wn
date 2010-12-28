@@ -35,11 +35,12 @@ end
 
 local function add(dat, task)
    if task and task.name then
-      if dat[task.name] then error("Item already exists: " .. task.name) end
+      if dat[task.name] then fail("Item already exists: " .. task.name) end
       dat[task.name] = task
    end
 end
 
+local function errmsg(msg) print(msg); os.exit(1) end
 local function newtask(name, descr) return { name=name, descr=descr or "", deps={} } end
 
 -- Read the graph from the wn file.
@@ -51,8 +52,7 @@ local function read(str)
    local dep_only = {}          --tasks that only exist as dependencies
 
    local function fail(msg)
-      msg = msg or fmt("Error in line %d: %s", line_ct, tostring(line))
-      error(msg)
+      errmsg(msg or fmt("Error in line %d: %s", line_ct, tostring(line)))
    end
 
    for line in str:gmatch("([^\n]+)") do
@@ -216,34 +216,34 @@ local function append(cfg, str)
 end
 
 local function cmd_done(cfg, dat, name)
-   assert(name, "Task name required")
+   if not name then errmsg "Task name required" end
    append(cfg, fmt("DONE %s\n", name))
 end
 
 local function cmd_add(cfg, dat, name, ...)
-   assert(name, "Task name required")
-   if dat[name] then error(fmt("Task %q already exists", name)) end
+   if not name then errmsg "Task name required" end
+   if dat[name] then errmsg(fmt("Task %q already exists.", name)) end
    local descr = table.concat({...}, " ")
    append(cfg, fmt("%s %s\n", name, descr))
 end
 
 local function cmd_dep(cfg, dat, name, ...)
-   assert(name, "Task name required")
+   if not name then errmsg "Task name required" end
    local deps = { ... }
-   assert(#deps > 0, "Dependency names required")
+   if #deps == 0 then errmsg "Dependency names required." end
    if not dat[name] then
       local b = { name }
       for _,dep in ipairs(deps) do b[#b+1] = "    DEP " .. dep end
       append(cfg, table.concat(b, "\n"))
    else
-      error "TODO - add dep to existing task"
+      errmsg "TODO - add dep to existing task"
    end
 end
 
 local function cmd_info(cfg, dat, key)
-   assert(key, "Task key required")
+   if not key then errmsg "Task key required" end
    local task = dat[key]
-   if not task then error("Not found: " .. key) end
+   if not task then errmsg("Not found: " .. key) end
    print(fmt("%s %s\n    PRIORITY %d\n    COST %d",
              task.name, get_descr(task), get_priority(task), get_cost(task)))
    for _,key in pairs(task.deps) do
@@ -322,7 +322,7 @@ local function parse_opts(arg)
          cfg.cmd = info
          drop(1)
       elseif not cfg.cmd or not cfg.cmd.vararg then
-         error("Unrecognized option: " .. tostring(cur))
+         errmsg("Unrecognized option: " .. tostring(cur))
       end
       i = i + 1
    end
