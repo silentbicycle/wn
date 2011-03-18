@@ -319,13 +319,13 @@ local function cmd_graph(cfg, dat)
    b[#b+1] = '    overlap="false";'
    for key,node in pairs(dat) do
       local ckey = key:gsub("-", "_")
-      if not node.done then
-         local leaf = #node.deps == 0 and ' style="filled" peripheries=2' or ""
-         local label = ckey --.. " " .. tostring(node.cost or 10)
-         b[#b+1] = fmt("    %s[label=%q%s];", ckey, label, leaf)
-         for i,dep in ipairs(node.deps) do
-            b[#b+1] = fmt("    %s->%s;", ckey, dep:gsub("-", "_"))
-         end
+      local leaf = #node.deps == 0 and ' style="filled" peripheries=2' or ""
+      if node.done then leaf = ' style="dotted" peripheries=1' end
+
+      local label = ckey --.. " " .. tostring(node.cost or 10)
+      b[#b+1] = fmt("    %s[label=%q%s];", ckey, label, leaf)
+      for i,dep in ipairs(node.deps) do
+         b[#b+1] = fmt("    %s->%s;", ckey, dep:gsub("-", "_"))
       end
    end
    b[#b+1] = "}"
