@@ -31,23 +31,20 @@ For a larger example, see examples/lebowski (*spoiler alert*).
 
 Command line options:
 
- * -v / --verbose: Print actions taken while reading input file
- * -h / --help:    Print commands
- * -f/ --file:     Use the filename given as the wn file
+ * `-v / --verbose`: Print actions taken while reading input file
+ * `-h / --help`:    Print commands
+ * `-f / --file`:    Use the filename given as the wn file
 
- * add:    Add a new task (with optional description), creating wn file if not present
- * dep:    Add new dependencies to a task (`wn.lua dep task dep1 dep2 ...`)
- * done:   Flag a task as done (`wn.lua done taskname`)
- * graph:  Generate .dot of dependency graph for Graphviz
- * help:   Print this info
- * info:   Print info about a task (`wn.lua info taskname`)
- * leaves: Print all leaves, sorted alphabetically
- * next:   (default) Print next actionable tasks, sorted by score
- * tasks:  Print all incomplete tasks, sorted alphabetically
+Commands: 
+
+ * `add`:    Add a new task (with optional description), creating wn file if not present
+ * `dep`:    Add new dependencies to a task (`wn.lua dep task dep1 dep2 ...`)
+ * `done`:   Flag a task as done (`wn.lua done taskname`)
+ * `graph`:  Generate .dot of dependency graph for Graphviz
+ * `help`:   Print this info
+ * `info`:   Print info about a task (`wn.lua info taskname`)
+ * `leaves`: Print all leaves, sorted alphabetically
+ * `next`:   (default) Print next actionable tasks, sorted by score
+ * `tasks`:  Print all incomplete tasks, sorted alphabetically
 
 To build a nice dependency graph, use e.g. `wn.lua graph | neato -Tpng > foo.png` . (which requires [Graphviz](http://graphviz.org/))
-
-Coming soon:
-
- * adding dependencies to existing tasks via dep
- * simple Emacs wrapper
