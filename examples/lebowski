@@ -1,37 +1,24 @@
-abide
-   DEP go-bowling
-   DEP burn-one
-   DEP have-a-caucasian
-   DEP get-rug-back
+abide go-bowling burn-one have-a-caucasian
+abide get-rug-back
 
-get-rug-back
-   DEP get-rug-from-lebowski
+get-rug-back get-rug-from-lebowski
+@desc get-rug-back It really ties the room together
 
-get-rug-from-lebowski
-   DEP confirm-rug-micturator
-   DEP pay-ransom-for-bunny
-   DEP investigate-jackie-treehorn
+get-rug-from-lebowski confirm-rug-micturator pay-ransom-for-bunny investigate-jackie-treehorn
 
-pay-ransom-for-bunny
-   DEP evade-nihilists
-   DEP give-suitcase
+pay-ransom-for-bunny evade-nihilists give-suitcase
 
-give-suitcase
-   DEP dont-give-ringer
-   DEP wheres-the-money-lebowski
+give-suitcase dont-give-ringer
+give-suitcase wheres-the-money-lebowski
 
-dont-give-ringer
-   DEP damn-it-walter
+dont-give-ringer damn-it-walter
 
-wheres-the-money-lebowski
-   DEP find-stolen-car
+wheres-the-money-lebowski find-stolen-car
 
-find-stolen-car
-   DEP question-larry-sellers
+find-stolen-car question-larry-sellers
 
-go-bowling
-   DEP not-about-vietnam
-   DEP stfu-donny
-   DEP dont-fuck-with-the-jesus
+go-bowling not-about-vietnam
+go-bowling stfu-donny dont-fuck-with-the-jesus
 
-DONE burn-one
+@done burn-one
+
