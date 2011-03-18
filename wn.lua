@@ -1,7 +1,7 @@
 #!/usr/bin/env lua
 
 --[[
-Copyright (c) 2010 Scott Vokes <vokes.s@gmail.com>
+Copyright (c) 2010-11 Scott Vokes <vokes.s@gmail.com>
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -19,23 +19,43 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 local fmt = string.format       --just a common abbrev
 
 
+-- TODO: add @load [filename] and @wait TASKNAME datespec
+
+local cmds                                  --forward reference
+
+
 -------------
 -- Reading --
 -------------
 
--- If given a filename, open that, else $WN_FILE, else ~/.wn.
-local function open_file(fn)
+local function exists(n)
+   local ok, f=io.open(n)
+   if ok and f then f:close() end
+   return ok
+end
+ 
+-- If given a filename, open that, else check ./.wn, $WN_FILE, and ~/.wn (in that order).
+local function open_file(cfg, mode)
+   local fn = cfg.file
    local ok, f
-   if fn then return assert(io.open(fn, 'r')) end
-   ok, f = pcall(io.open, ".wn", "r")
-   if ok and f then return f end
-   fn = os.getenv("WN_FILE") or os.getenv("HOME") .. "/.wn"
-   return assert(io.open(fn, 'r'))
+   for _,path in ipairs{fn or "", ".wn", os.getenv("WN_FILE") or "",
+                        os.getenv("HOME") .. "/.wn"} do
+      if path ~= "" then
+         if exists(path) then
+            return assert(io.open(path, mode))
+         elseif cfg.cmd == cmds.add[1] then
+            local f, err = io.open(path, 'w')        --create it
+            return f
+         end
+      end
+   end
+   print("No wn file found.")
+   os.exit(1)
 end
 
 local function add(dat, task)
    if task and task.name then
-      if dat[task.name] then fail("Item already exists: " .. task.name) end
+      if dat[task.name] then return end
       dat[task.name] = task
    end
 end
@@ -44,60 +64,101 @@ local function errmsg(msg) print(msg); os.exit(1) end
 local function newtask(name, descr) return { name=name, descr=descr or "", deps={} } end
 
 -- Read the graph from the wn file.
--- Each line is either "taskname [description]", "DONE taskname",
--- or "    CMD arg" where CMD is DEP (add-dependency), COST, or PRIORITY.
-local function read(str)
-   local dat, done, cur = {}, {}, nil
-   local line_ct = 1
+-- Each line is either "taskname deptask*" or "@CMD ARGS".
+local function read(str, verbose)
+   str = str or ""
+   local dat, done = {}, {}
+   local line_ct, line = 1
    local dep_only = {}          --tasks that only exist as dependencies
 
    local function fail(msg)
       errmsg(msg or fmt("Error in line %d: %s", line_ct, tostring(line)))
    end
 
-   for line in str:gmatch("([^\n]+)") do
-      local ws, first, rest = line:match("^(%s*)(%a[%w_.-]*)%s*(.*)")
-      if ws then
-         if ws:len() == 0 then
-            if first:len() > 0 then        --begins w/ a new task or DONE
-               if first == "DONE" then 
-                  local name = line:match("^DONE%s+([%a_.-]*)")
-                  if name then done[name] = true else fail() end
-               else
-                  if cur then add(dat, cur) end
-                  cur = newtask(first, rest)
-                  dep_only[first] = nil    --mark as created already
+   local function add(taskname)
+      dat[taskname] = dat[taskname] or newtask(taskname)
+      dep_only[taskname] = nil
+      if verbose then print(fmt("-- added: %s", taskname)) end
+   end
+
+   local function add_dep(taskname, dep)
+      local t = dat[taskname]
+      t.deps[#t.deps+1] = dep
+      if not dat[dep] then dep_only[dep] = true end
+      if verbose then print(fmt("-- dependency, %s <- %s", taskname, dep)) end
+   end
+
+   local function add_descr(taskname, descr)
+      local t = dat[taskname]
+      if verbose then print(fmt("-- description for %s: %s", taskname, descr)) end
+      if t then t.descr = descr else fail() end
+   end
+
+   local function set_scoring(taskname, category, value)
+      local t = dat[taskname]
+      if t then t[category] = value else fail() end
+      if verbose then print(fmt("-- %s for %s to %d\n", category, task, value)) end
+   end
+
+   local function import_wnfile(fn)
+      -- TODO
+   end
+
+   local function wait(taskname, timestamp)
+      -- TODO
+   end
+
+   for l in str:gmatch("([^\n]+)") do
+      line = l
+      if line:match("^@") then              --begins w/ command
+         local cmd, rest = line:match("^@(%a+) +(.*)$")
+         if cmd then
+            cmd = cmd:lower()               --@done @desc @cost @value @load
+            if cmd == "done" then
+               for task in rest:gmatch("([%w_.-]+)") do
+                  if verbose then print(fmt("-- done: %s", task)) end
+                  done[task] = true
                end
-            end
-         else
-            if first == "DEP" then
-               local name = line:match("DEP%s+([%a_.-]*)")
-               if cur and name then
-                  cur.deps[#cur.deps+1] = name
-                  if not dat[name] then dep_only[name] = true end
-               else
-                  fail()
-               end
-            elseif first == "COST" then
-               local cost = line:match("COST%s+(%d+)")
-               if cur and cost then cur.cost = tonumber(cost) else fail() end
-            elseif first == "PRIORITY" or first == "PRIO" then
-               local prio = line:match("PRIO[A-Z]*%s+(%d+)")
-               if cur and prio then cur.priority = tonumber(prio) else fail() end
+            elseif cmd == "desc" then
+               local task, desc = rest:match("([%w_.-]+) (.*)")
+               if task then add_descr(task, desc) else fail() end
+            elseif cmd == "cost" then
+               local task, cost = rest:match("([%w_.-]+) (%d+)")
+               if task and cost then set_scoring(task, "cost", tonumber(cost)) else fail() end
+            elseif cmd == "value" then
+               local task, val = rest:match("([%w_.-]+) (%d+)")
+               if task and val then set_scoring(task, "priority", tonumber(val)) else fail() end
+            elseif cmd == "load" then
+               -- TODO
+               fail "TODO"
+            elseif cmd == "wait" then
+               -- TODO
+               fail "TODO"
             else
                fail()
             end
+         else
+            fail()
          end
-      else
-         fail()
+      elseif line:match("^%w") then       --begins w/ task
+         local task = line:match("^([%w_.-]+)")
+         local deplist = line:match("^[%w_.-]+ +(.*)$") or ""
+         if task then
+            local deps = {}
+            for dep in deplist:gmatch("([%w_.-]+)") do deps[#deps+1]=dep end
+            add(task)
+            for _,d in ipairs(deps) do add_dep(task, d) end
+         else
+            fail()
+         end
+      else                                  --treat as comment
+
       end
       line_ct = line_ct + 1
    end
 
    -- Create any tasks which are only deps to others
-   for name in pairs(dep_only) do add(dat, newtask(name)) end
-
-   if cur then add(dat, cur) end
+   for name in pairs(dep_only) do add(name) end
 
    for key in pairs(done) do
       local item = dat[key]
@@ -131,6 +192,7 @@ end
 
 -- Format a task list for printing.
 local function get_task_list(ts, columns, scores)
+   local scores = scores or {}
    local b, maxlen, max = {}, 1, math.max
    for id,val in ipairs(ts) do
       maxlen = max(maxlen, val.name:len())
@@ -140,8 +202,9 @@ local function get_task_list(ts, columns, scores)
 
    for id,val in ipairs(ts) do
       local name = name_fmt:format(val.name)
+      local score = scores[val.name] and fmt("%.2f ", scores[val.name]) or ""
       local descr = (val.descr or ""):sub(1, columns - maxlen - 3)
-      b[#b+1] = (name .. descr):gsub(" *$", "")
+      b[#b+1] = fmt("%s%s%s", score, name, descr):gsub(" *$", "")
    end
    return table.concat(b, "\n")
 end
@@ -210,44 +273,44 @@ local function cmd_tasks(cfg, dat)
 end
 
 local function append(cfg, str)
-   local f = assert(io.open(cfg.file, 'a'))
+   local f = open_file(cfg, 'a')
    assert(f:write(str))
    assert(f:close())
 end
 
 local function cmd_done(cfg, dat, name)
    if not name then errmsg "Task name required" end
-   append(cfg, fmt("DONE %s\n", name))
+   append(cfg, fmt("@done %s\n", name))
 end
 
 local function cmd_add(cfg, dat, name, ...)
    if not name then errmsg "Task name required" end
    if dat[name] then errmsg(fmt("Task %q already exists.", name)) end
    local descr = table.concat({...}, " ")
-   append(cfg, fmt("%s %s\n", name, descr))
+   local buf = {}
+
+   buf[1] = fmt("%s\n", name)
+   if descr and descr ~= "" then buf[2] = fmt("@desc %s %s\n", name, descr) end
+   append(cfg, table.concat(buf))
 end
 
 local function cmd_dep(cfg, dat, name, ...)
    if not name then errmsg "Task name required" end
    local deps = { ... }
    if #deps == 0 then errmsg "Dependency names required." end
-   if not dat[name] then
-      local b = { name }
-      for _,dep in ipairs(deps) do b[#b+1] = "    DEP " .. dep end
-      append(cfg, table.concat(b, "\n"))
-   else
-      errmsg "TODO - add dep to existing task"
-   end
+   local b = { name }
+   for _,dep in ipairs(deps) do b[#b+1] = " " .. dep end
+   append(cfg, table.concat(b) .. "\n")
 end
 
 local function cmd_info(cfg, dat, key)
    if not key then errmsg "Task key required" end
    local task = dat[key]
    if not task then errmsg("Not found: " .. key) end
-   print(fmt("%s %s\n    PRIORITY %d\n    COST %d",
-             task.name, get_descr(task), get_priority(task), get_cost(task)))
+   print(fmt("%s - Priority: %d Cost: %d Descr: %s",
+             task.name, get_priority(task), get_cost(task), get_descr(task)))
    for _,key in pairs(task.deps) do
-      print("    DEP " .. key)
+      print("    Dep: " .. key)
    end
 end
 
@@ -270,10 +333,8 @@ local function cmd_graph(cfg, dat)
    print(dot)
 end
 
-local cmds
-
 local function cmd_help(cfg, dat)
-   print "Usage:"
+   print "Usage: wn [-v|--verbose] [-f|--file wnfile] [-h|--help] [COMMAND ARGS]"
    local b = {}
    for name,info in pairs(cmds) do
       b[#b+1] = fmt("  %-6s - %s", name, info[2])
@@ -317,6 +378,8 @@ local function parse_opts(arg)
       elseif cur == "-h" or cur == "--help" then
          cmd_help()
          os.exit(0)
+      elseif cur == "-v" or cur == "--verbose" then
+         cfg.verbose = true
       elseif cmds[cur] then
          local info = cmds[cur]
          cfg.cmd = info
@@ -335,8 +398,8 @@ end
 
 local function main(arg)
    cfg = parse_opts(arg)
-   local f = open_file(cfg.file)
-   local dat = read(f:read("*a"))
+   local f = assert(open_file(cfg, 'r'))
+   local dat = read(f:read("*a"), cfg.verbose)
    if cfg.cmd then cfg.cmd(cfg, dat, unpack(cfg.cmd_args or {})) end
 end
 
