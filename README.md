@@ -2,19 +2,18 @@
 
 To run wn, you need [Lua](http://lua.org). That's it.
 
-Think of wn as `make` for your to-do list, to automatically track what
-can be worked on *NOW* when switching between several ongoing projects.
+Think of wn as `make` for your to-do list. It automatically tracks what
+should be worked on next when switching between several ongoing projects.
 
-wn reads a text file listing tasks, then builds a dependency graph.
-Tasks are scored by what depends on them, and how much completing them
-will contribute to getting their dependants unstuck.
+wn reads a text file of tasks and dependencies, then prioritizes your
+to-do list according to the other tasks that would be doable upon completion.
 
 wn checks (in order) for a wn file given on the command line, a file
 called ".wn" in the current directory, then the $WN_FILE environment
 variable, then "~/.wn". The file should be structured like so:
 
     shoes socks find-shoes
-    @desc shoes Put on shoes   `(descriptions are optional)`
+    @desc shoes Put on shoes   (descriptions are optional)
     socks
 
 The first token on a line is a task name, any following are dependencies
