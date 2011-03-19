@@ -22,9 +22,10 @@ for that task. Task names can contain alphanumeric chars and [_.-].
 The line can also begin with some special commands, all of which begin with @:
 
     @desc taskname Add a description for a task
-    @done taskname `(mark tags as complete)`
-    @cost `(change task cost, defaults to 10)`
-    @value `(change task value, defaults to 10)`
+    @done taskname (mark tags as complete)
+    @cost taskname cost (change task cost, defaults to 10)
+    @value taskname value (change task priority, defaults to 10)
+    @wait taskname [timestamp] (keep leaf inactive until provided date)
 
 Lines that begin with anything else (or are empty) are ignored as comments.
 

@@ -21,7 +21,6 @@ local DEBUG = false
 
 local function log(...) print(fmt(...)) end
 
-
 -- TODO: add @load [filename] and @wait TASKNAME DATESPEC
 
 local cmds                                  --forward reference
@@ -75,7 +74,7 @@ end
 -- Each line is either "taskname deptask*" or "@CMD ARGS".
 local function read(str, verbose)
    str = str or ""
-   local dat, done, weights = {}, {}, {}
+   local dat, done, props = {}, {}, {}
    local line_ct, line = 1
    local dep_only = {}          --tasks that only exist as dependencies
 
@@ -102,17 +101,13 @@ local function read(str, verbose)
       if t then t.descr = descr else fail() end
    end
 
-   local function set_scoring(taskname, category, value)
-      local t = weights[taskname] or {}
+   local function set_prop(taskname, category, value)
+      local t = props[taskname] or {}
       t[category] = value
-      weights[taskname] = t
+      props[taskname] = t
    end
 
    local function import_wnfile(fn)
-      errmsg("NYI")
-   end
-
-   local function wait(taskname, timestamp)
       errmsg("NYI")
    end
 
@@ -132,14 +127,16 @@ local function read(str, verbose)
                if task then add_descr(task, desc) else fail() end
             elseif cmd == "cost" then
                local task, cost = rest:match("([%w_.-]+) (%d+)")
-               if task and cost then set_scoring(task, "cost", tonumber(cost)) else fail() end
+               if task and cost then set_prop(task, "cost", tonumber(cost)) else fail() end
             elseif cmd == "value" then
                local task, val = rest:match("([%w_.-]+) (%d+)")
-               if task and val then set_scoring(task, "priority", tonumber(val)) else fail() end
+               if task and val then set_prop(task, "priority", tonumber(val)) else fail() end
             elseif cmd == "load" then
                fail "TODO"
             elseif cmd == "wait" then
-               fail "TODO"
+               local task = rest:match("^([%w_.-]+)")
+               local timestamp = rest:match("^[%w_.-]+ (.+)") or true --optional
+               if task then set_prop(task, "wait", timestamp) else fail() end
             else
                fail()
             end
@@ -171,12 +168,12 @@ local function read(str, verbose)
       if item then item.done = true end
    end
 
-   for key, val in pairs(weights) do
+   for key, val in pairs(props) do
       local item = dat[key]
       if not item then fail("invalid item: " .. key) end
-      for _,k in ipairs{"cost", "priority"} do
+      for _,k in ipairs{"cost", "priority", "wait"} do
          if val[k] then
-            if verbose then log("-- set %s for %s to %d", k, key, val.cost) end
+            if verbose then log("-- set %s for %s to %s", k, key, tostring(val[k])) end
             item[k] = val[k]
          end
       end
@@ -233,10 +230,29 @@ local function find_roots(g)
    return roots
 end
 
+local function should_wait(task)
+   if task.wait == true then return true
+   elseif type(task.wait) == "string" then
+      local y, m, d = task.wait:match("^(%d%d%d?%d?)[./-](%d%d?)[./-](%d%d?)$")
+      if y then
+         y, m, d = tonumber(y), tonumber(m), tonumber(d)
+         if y < 100 then y = y + 2000 end
+         return os.difftime(os.time({year=y, month=m, day=d}), os.time()) > 0
+      else
+         errmsg(fmt("Bad timespec %q, should be y/m/d", task.wait))
+      end
+   end
+   return false
+end
+
 local function find_leaves(g)
    local ls = {}
    for key,task in pairs(g) do
-      if not next(task.deps) and not task.done then ls[#ls+1] = task end
+      if next(task.deps) or task.done or should_wait(task) then
+         -- no-op
+      else
+         ls[#ls+1] = task
+      end
    end
    return ls
 end
@@ -387,7 +403,9 @@ local function cmd_graph(cfg, dat)
    for key,node in pairs(dat) do
       local ckey = key:gsub("-", "_")
       local leaf = #node.deps == 0 and ' style="filled" peripheries=2' or ""
-      if node.done then leaf = ' style="dotted" peripheries=1' end
+      if node.done then leaf = ' style="dotted" peripheries=1'
+      elseif should_wait(node) then leaf = ' style="dotted" peripheries=2'
+      end
 
       local label = ckey --.. " " .. tostring(node.cost or 10)
       b[#b+1] = fmt("    %s[label=%q%s];", ckey, label, leaf)
