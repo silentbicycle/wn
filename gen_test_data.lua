@@ -34,10 +34,10 @@ function gen_data(task_ct)
       local b = { tasks[i] .. " " .. randstr() }
       local ds = deps[tasks[i]]
       for _,d in ipairs(ds) do
-         b[#b+1] = "    DEP " .. tasks[d]
+         b[#b+1] = " " .. tasks[d]
       end
-      b[#b+1] = ""
-      print(table.concat(b, "\n"))
+      b[#b+1] = "\n"
+      print(table.concat(b))
    end   
 end
 
