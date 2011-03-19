@@ -2,6 +2,7 @@ abide go-bowling burn-one have-a-caucasian
 abide get-rug-back
 
 get-rug-back get-rug-from-lebowski
+@value get-rug-back 100
 @desc get-rug-back It really ties the room together
 
 get-rug-from-lebowski confirm-rug-micturator pay-ransom-for-bunny investigate-jackie-treehorn

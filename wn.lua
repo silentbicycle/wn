@@ -17,12 +17,14 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 --]]
 
 local fmt = string.format       --just a common abbrev
+local DEBUG = false
+
+local function log(...) print(fmt(...)) end
 
 
--- TODO: add @load [filename] and @wait TASKNAME datespec
+-- TODO: add @load [filename] and @wait TASKNAME DATESPEC
 
 local cmds                                  --forward reference
-
 
 -------------
 -- Reading --
@@ -60,8 +62,14 @@ local function add(dat, task)
    end
 end
 
-local function errmsg(msg) print(msg); os.exit(1) end
-local function newtask(name, descr) return { name=name, descr=descr or "", deps={} } end
+local function errmsg(msg)
+   if DEBUG then error(msg) end
+   print(msg); os.exit(1)
+end
+
+local function newtask(name, descr)
+   return { name=name, descr=descr or "", deps={}, parents={} }
+end
 
 -- Read the graph from the wn file.
 -- Each line is either "taskname deptask*" or "@CMD ARGS".
@@ -78,34 +86,34 @@ local function read(str, verbose)
    local function add(taskname)
       dat[taskname] = dat[taskname] or newtask(taskname)
       dep_only[taskname] = nil
-      if verbose then print(fmt("-- added: %s", taskname)) end
+      if verbose then log("-- added: %s", taskname) end
    end
 
    local function add_dep(taskname, dep)
       local t = dat[taskname]
       t.deps[#t.deps+1] = dep
       if not dat[dep] then dep_only[dep] = true end
-      if verbose then print(fmt("-- dependency, %s <- %s", taskname, dep)) end
+      if verbose then log("-- dependency, %s <- %s", taskname, dep) end
    end
 
    local function add_descr(taskname, descr)
       local t = dat[taskname]
-      if verbose then print(fmt("-- description for %s: %s", taskname, descr)) end
+      if verbose then log("-- description for %s: %s", taskname, descr) end
       if t then t.descr = descr else fail() end
    end
 
    local function set_scoring(taskname, category, value)
       local t = dat[taskname]
       if t then t[category] = value else fail() end
-      if verbose then print(fmt("-- %s for %s to %d\n", category, task, value)) end
+      if verbose then log("-- %s for %s to %d", category, task, value) end
    end
 
    local function import_wnfile(fn)
-      -- TODO
+      errmsg("NYI")
    end
 
    local function wait(taskname, timestamp)
-      -- TODO
+      errmsg("NYI")
    end
 
    for l in str:gmatch("([^\n]+)") do
@@ -116,7 +124,7 @@ local function read(str, verbose)
             cmd = cmd:lower()               --@done @desc @cost @value @load
             if cmd == "done" then
                for task in rest:gmatch("([%w_.-]+)") do
-                  if verbose then print(fmt("-- done: %s", task)) end
+                  if verbose then log("-- done: %s", task) end
                   done[task] = true
                end
             elseif cmd == "desc" then
@@ -129,10 +137,8 @@ local function read(str, verbose)
                local task, val = rest:match("([%w_.-]+) (%d+)")
                if task and val then set_scoring(task, "priority", tonumber(val)) else fail() end
             elseif cmd == "load" then
-               -- TODO
                fail "TODO"
             elseif cmd == "wait" then
-               -- TODO
                fail "TODO"
             else
                fail()
@@ -184,12 +190,6 @@ local function get_cost(task)
    return task.cost or 10
 end
 
-local function get_cost_of_deps(task)
-   local t = 0
-   for _,dep in ipairs(task.deps) do t = t + get_cost(dep) end
-   return t
-end
-
 -- Format a task list for printing.
 local function get_task_list(ts, columns, scores)
    local scores = scores or {}
@@ -209,55 +209,110 @@ local function get_task_list(ts, columns, scores)
    return table.concat(b, "\n")
 end
 
+-- Find roots of the graph (if any).
+local function find_roots(g)
+   local roots, depped_on = {}, {}
+   for name, task in pairs(g) do
+      if not depped_on[name] then roots[name] = true end
+      for _,dep in ipairs(task.deps) do
+         roots[dep] = nil; depped_on[dep] = true
+      end
+   end
+   return roots
+end
+
+local function find_leaves(g)
+   local ls = {}
+   for key,task in pairs(g) do
+      if not next(task.deps) and not task.done then ls[#ls+1] = task end
+   end
+   return ls
+end
 
 --------------
 -- Commands --
 --------------
 
+-- Return a list of leaves, sorted by score.
 local function cmd_next(cfg, dat)
-   -- Figure out all leaves, and weight according to score.
-   -- The score of a leaf is the sum of (dependee priority * (cost
-   -- the leaf represents / total cost of all its deps)) - cost.
-   local ls, ds = {}, {}      --leaves, dependants
-   for key,task in pairs(dat) do
-      if not next(task.deps) and not task.done then
-         ls[#ls+1] = task
-      else
-         for _,d in ipairs(task.deps) do
-            local dlist = ds[d] or {}
-            dlist[#dlist+1] = task
-            ds[d] = dlist
+   local ls = find_leaves(dat)
+   local verbose = cfg.verbose or DEBUG
+
+   function get_scores(g)
+      local ccache, vcache = {}, {}    -- cost and value caches (dynamic programming)
+
+      local roots = find_roots(g)
+      if not next(roots) then print("Cycle detected, graph has no roots"); os.exit(1) end
+      
+      local seen = {}
+      -- Walk the graph depth-first, noting parents and totaling costs bottom-up.
+      local function walk(x, par)
+         assert(type(x) == "table")
+         local arc = (par and par.name or "_") .. "=>" .. x.name
+         if not seen[arc] then
+            seen[arc] = true
+            local t = get_cost(x)
+            if par then x.parents[par] = true end
+            for _,d in ipairs(x.deps or {}) do
+               walk(g[d], x)
+            end
+            for _,d in ipairs(x.deps or {}) do
+               -- if it gets an unset cost while building a bottom-up table of the
+               -- recursive total costs, the graph has a cycle. warn and quit.
+               if ccache[d] == nil then 
+                  errmsg(fmt("Error: Cycle detected in graph at %s -> %s", par.name, x.name))
+               end
+               t = t + ccache[d]
+            end
+            if verbose then log("-- setting %s's cost to %d", x.name, t) end
+            ccache[x.name] = t
          end
       end
-   end
+      
+      -- Walk the graph depth-first again, totaling values top-down.
+      -- The value of a task is its priority plus the sum of the percentage of its
+      -- parent(s) values that completing it would make actionable. In other words,
+      -- how much value would be freed up if the task was finished.
+      local function val_walk(x)
+         assert(x)
+         if not seen[x.name] then
+            seen[x.name] = true
+            local t = get_priority(x)
+            local cost = ccache[x.name]
+            if verbose then log("name:%s\tprio:%d\tcost:%d", x.name, t, cost) end
 
-   local ss = {}
-   local function get_score(leaf, depth)
-      local s = ss[leaf]
-      if s then return s end
-      depth = depth or 10
-      if depth == 0 then return get_priority(leaf) end
-      local t, lcost = get_priority(leaf), get_cost(leaf)
-      for _,task in ipairs(ds[leaf.name] or {}) do
-         t = t + get_score(task, depth-1) * (lcost / get_cost_of_deps(task))
+            for p in pairs(x.parents) do
+               local pc, pv = ccache[p.name], vcache[p.name]
+               if verbose then log("-- add: par prio:%d\tpar cost:%d\tpar prio * cost/pc=%f\t(par=%s)",
+                         pv, pc, pv * cost/pc, p.name) end
+               t = t + (pv * cost/pc)
+            end
+            if verbose then log("-- total => %f", t) end
+            vcache[x.name] = t
+            for _,d in ipairs(x.deps) do
+               val_walk(assert(g[d]))
+            end
+         end
       end
-      ss[leaf.name] = t
-      return t
+
+      for r in pairs(roots) do walk(g[r]) end
+      seen = {}
+      for r in pairs(roots) do vcache[r] = get_priority(r) end
+      for r in pairs(roots) do val_walk(g[r]) end
+
+      return vcache
    end
 
-   for _,leaf in ipairs(ls) do ss[leaf.name] = get_score(leaf) end
+   local ss = get_scores(dat)
+   table.sort(ls, function(a,b) return ss[a.name] > ss[b.name] end)
+   if DEBUG then for k,v in pairs(ss) do print(k,v) end end
 
-   table.sort(ls, function(a,b) return ss[a.name] > ss[b.name] end)   --by score
    local columns = tonumber(os.getenv("COLUMNS") or 72)
    print(get_task_list(ls, columns, ss))
 end
 
 local function cmd_leaves(cfg, dat)
-   local ls = {}
-   for key,task in pairs(dat) do
-      if task.deps and not next(task.deps) then ls[#ls+1] = task end
-   end
-
+   local ls = find_leaves(dat)
    table.sort(ls, function(a,b) return a.name < b.name end)
    local columns = tonumber(os.getenv("COLUMNS") or 72)
    print(get_task_list(ls, columns))

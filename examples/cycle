@@ -1,0 +1,12 @@
+# This has cycles at j->b and g->c, one of which should cause a warning and exit.
+a b
+b c
+c d
+d e
+e f
+f g
+g h c k
+h i
+i j
+j b
+

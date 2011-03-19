@@ -1,0 +1,7 @@
+# both b and f depend on c
+a b
+b c
+c d
+d e
+f c
+
