@@ -75,7 +75,7 @@ end
 -- Each line is either "taskname deptask*" or "@CMD ARGS".
 local function read(str, verbose)
    str = str or ""
-   local dat, done = {}, {}
+   local dat, done, weights = {}, {}, {}
    local line_ct, line = 1
    local dep_only = {}          --tasks that only exist as dependencies
 
@@ -103,9 +103,9 @@ local function read(str, verbose)
    end
 
    local function set_scoring(taskname, category, value)
-      local t = dat[taskname]
-      if t then t[category] = value else fail() end
-      if verbose then log("-- %s for %s to %d", category, task, value) end
+      local t = weights[taskname] or {}
+      t[category] = value
+      weights[taskname] = t
    end
 
    local function import_wnfile(fn)
@@ -170,6 +170,18 @@ local function read(str, verbose)
       local item = dat[key]
       if item then item.done = true end
    end
+
+   for key, val in pairs(weights) do
+      local item = dat[key]
+      if not item then fail("invalid item: " .. key) end
+      for _,k in ipairs{"cost", "priority"} do
+         if val[k] then
+            if verbose then log("-- set %s for %s to %d", k, key, val.cost) end
+            item[k] = val[k]
+         end
+      end
+   end
+
    return dat
 end
 
